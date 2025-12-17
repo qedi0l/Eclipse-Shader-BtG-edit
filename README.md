@@ -5,7 +5,7 @@ Eclipse BtG edit is an edit of Eclipse specially for my WIP modpack "BtG". Core 
 This celling fog appear around 100 blocks height and in case of my modpack you can't breathe free at the height ~100 blocks.
 
 Notable changes/additions compared to Eclipse unstable:
- + Additional layer of in overworld
+ + Additional layer of fog in overworld
 
 <img width="1920" height="1080" alt="2025-12-17_15 15 41" src="https://github.com/user-attachments/assets/f761531c-8d56-45c2-a609-51690d140820" />
 
