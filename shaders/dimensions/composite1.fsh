@@ -1,7 +1,7 @@
 #include "/lib/settings.glsl"
 
 #if defined CUSTOM_MOON_ROTATION || defined END_ISLAND_LIGHT
-	#include "/lib/SSBOs.glsl
+	#include "/lib/SSBOs.glsl"
 
 	#ifdef CUSTOM_MOON_ROTATION
 		uniform sampler2D CoronaTex;

@@ -47,6 +47,26 @@ float cloudVol(in vec3 pos, float maxDistance ){
 	return uniformFog + medium_gradientFog + cloudyFog + rainyFog;
 }
 
+float cloudVol2(in vec3 pos){
+	vec3 samplePos = pos*vec3(1.0,1./48.,1.0);
+
+	float Wind = pow(max(pos.y-30.,0.0) / 15.0,2.1);
+
+	float Plumes = texture2D(noisetex, (samplePos.xz + Wind)/256.0).b;
+	float floorPlumes = clamp(0.3 - exp(Plumes * -6),0,1);
+	Plumes *= Plumes;
+
+	float Erosion = densityAtPosFog(samplePos * 400. - frameTimeCounter*10. - Wind*10.) *0.7+0.3 ;
+
+	float RoofToFloorDensityFalloff = exp(max(pos.y,0.0) / -5.);
+	float FloorDensityFalloff = pow(exp(max(pos.y-100,0.0) / -3.0),2.);
+	float RoofDensityFalloff = exp(max(pos.y,0.0) / -5.);
+
+	float Output = max((RoofToFloorDensityFalloff - Plumes * (1.0-Erosion)) * 2.0,	clamp((FloorDensityFalloff - floorPlumes*0.5) * Erosion ,0.0,1.0) );
+
+	return Output;
+}
+
 float phaseRayleigh(float cosTheta) {
 	const vec2 mul_add = vec2(0.1, 0.28) / acos(-1.0);
 	return cosTheta * mul_add.x + mul_add.y; // optimized version from [Elek09], divided by 4 pi for energy conservation
@@ -75,7 +95,9 @@ vec4 GetVolumetricFog(
 	in vec3 LightColor,
 	in vec3 AmbientColor,
 	in vec3 AveragedAmbientColor,
-	in float cloudPlaneDistance
+	in float cloudPlaneDistance,
+	in float dither1,
+	in float dither2
 ){
 	#ifndef TOGGLE_VL_FOG
 		return vec4(0.0,0.0,0.0,1.0);
@@ -85,7 +107,7 @@ vec4 GetVolumetricFog(
 
 	//project pixel position into projected shadowmap space
 	vec3 playerPos = mat3(gbufferModelViewInverse) * viewPosition + gbufferModelViewInverse[3].xyz;
-	// vec3 rayStartPos = playerPos - gbufferModelViewInverse[3].xyz;
+	vec3 rayStartPos = playerPos - gbufferModelViewInverse[3].xyz;
 	#ifdef CUSTOM_MOON_ROTATION
 		vec3 fragposition = mat3(customShadowMatrixSSBO) * playerPos  + customShadowMatrixSSBO[3].xyz;
 	#else
@@ -102,6 +124,12 @@ vec4 GetVolumetricFog(
 	vec3 dV = fragposition - start;
 	vec3 dVWorld = playerPos - gbufferModelViewInverse[3].xyz;
 
+	vec3 wpos = mat3(gbufferModelViewInverse) * viewPosition + gbufferModelViewInverse[3].xyz;
+	vec3 dVWorld2 = (wpos-gbufferModelViewInverse[3].xyz);
+	float maxLength2 = min(length(dVWorld2), min(far,16*12))/length(dVWorld2);
+	dVWorld2 *= maxLength2;
+	float dL2 = length(dVWorld2);
+
 	#if defined DISTANT_HORIZONS || defined VOXY
 		float maxLength = min(min(length(dVWorld), cloudPlaneDistance), max(far, dhVoxyRenderDistance))/length(dVWorld);
 	#else
@@ -115,12 +143,15 @@ vec4 GetVolumetricFog(
 
 	vec3 progress = start.xyz;
 	vec3 progressW = vec3(0.0);
+	vec3 progressW2 = vec3(0.0);
 	const float expFactor = 11.0;
 
 	/// -------------  COLOR/LIGHTING STUFF ------------- \\\
 	
 	vec3 color = vec3(0.0);
 	vec3 finalAbsorbance = vec3(1.0);
+
+	vec3 hazeColor = normalize(gl_Fog.color.rgb + 1e-6) * 0.25;
 
 	// float totalAbsorbance = 1.0;
 	vec3 totalAbsorbance = vec3(1.0);
@@ -174,8 +205,33 @@ vec4 GetVolumetricFog(
 		float d = (pow(expFactor, float(i+dither.x)/float(SAMPLECOUNT))/expFactor - 1.0/expFactor)/(1-1.0/expFactor);
 		float dd = pow(expFactor, float(i+dither.y)/float(SAMPLECOUNT)) * log(expFactor) / float(SAMPLECOUNT)/(expFactor-1.0);
 
+		float d2 = (pow(expFactor, float(i+dither2)/float(SAMPLECOUNT))/expFactor - 1.0/expFactor)/(1.0-1.0/expFactor);
+		float dd2 = pow(expFactor, float(i+dither1)/float(SAMPLECOUNT)) * log(expFactor) / float(SAMPLECOUNT)/(expFactor-1.0);
+
 		progress = start.xyz + d*dV;
 		progressW = gbufferModelViewInverse[3].xyz + cameraPosition + d*dVWorld;
+
+		progressW2 = gbufferModelViewInverse[3].xyz + cameraPosition + d2*dVWorld2;
+
+		vec3 dist3 = progressW2;
+		float dist = length(dist3);
+		float densityVol2 = cloudVol2(progressW2);
+		float clearArea = 1.0 - min(max(1.0 - dist / 24.0,0.0),1.0);
+
+	//------ PLUME EFFECT
+		float plumeDensity = min(densityVol2 * pow(min(max(progressW2.y,0.0)/30.0,1.0),4.0), pow(clamp(1.0 - dist/far,0.0,1.0),0.0));
+
+		// #ifndef ReflectedFog
+		plumeDensity *= NETHER_PLUME_DENSITY;
+		// #endif
+
+		float plumeVolumeCoeff = exp(-plumeDensity*dd2*dL2);
+
+		vec3 lighting2 = vec3(1.0,0.4,0.2)*0.25 * exp(-15.0*densityVol2) * (clearArea*clearArea*0.9+0.1);
+
+		color += (lighting2 - lighting2 * plumeVolumeCoeff) * totalAbsorbance;
+		totalAbsorbance *= plumeVolumeCoeff;
+
 
 		//------------------------------------
 		//------ SAMPLE SHADOWS FOR FOG EFFECTS
@@ -229,7 +285,7 @@ vec4 GetVolumetricFog(
 
 			vec3 Lightning = Iris_Lightningflash_VLfog(progressW-cameraPosition);
 			vec3 lighting = DirectLight + indirectLight + 0.1 * Lightning;
-			
+
 			color += (lighting - lighting * fogVolumeCoeff) * totalAbsorbance;
 
 			#if defined FLASHLIGHT && defined FLASHLIGHT_FOG_ILLUMINATION && !defined VL_CLOUDS_DEFERRED
@@ -286,10 +342,26 @@ vec4 GetVolumetricFog(
 			// vec3 Atmosphere = LightSourcePhased * sh * (rayL*rL + sunPhase*m) + AveragedAmbientColor * (rL+m);
 			vec3 Atmosphere = (LightSourcePhased * sh * (rayL*rL + sunPhase*m) + AveragedAmbientColor * (rL+m) * (lightLevelZero*0.99 + 0.01)) * inACave;
 			color += (Atmosphere - Atmosphere * atmosphereVolumeCoeff) / (rL+m+1e-6) * atmosphereAbsorbance;
-	
+
 			atmosphereAbsorbance *= atmosphereVolumeCoeff*fogVolumeCoeff;
 
 			// totalAbsorbance *= dot(atmosphereVolumeCoeff,vec3(0.33333));
+
+		//------ CEILING SMOKE EFFECT
+
+			float ceilingSmokeDensity = 0.001 * pow(min(max(progressW2.y-40.0,0.0)/50.0,1.0),3.0);
+
+			// #ifndef ReflectedFog
+			ceilingSmokeDensity *= NETHER_CEILING_SMOKE_DENSITY;
+			// #endif
+
+			float ceilingSmokeVolumeCoeff = exp(-ceilingSmokeDensity*dd2*dL2);
+
+			vec3 ceilingSmoke = vec3(0.1);
+
+			color += (ceilingSmoke - ceilingSmoke*ceilingSmokeVolumeCoeff) * (totalAbsorbance*0.5+0.5);
+			totalAbsorbance *= ceilingSmokeVolumeCoeff;
+
 	}
 
 	// sceneColor = finalsceneColor;

@@ -748,7 +748,7 @@ void main() {
 			#endif
 
 			// vec3 sceneColor = texelFetch2D(colortex3,texcoord,0).rgb * VolumetricClouds.a + VolumetricClouds.rgb;
-			VolumetricFog = GetVolumetricFog(viewPos0, WsunVec, BN, directLightColor, indirectLight_fog, indirectLightColor_dynamic, cloudPlaneDistance);
+			VolumetricFog = GetVolumetricFog(viewPos0, WsunVec, BN, directLightColor, indirectLight_fog, indirectLightColor_dynamic, cloudPlaneDistance, noise_1, noise_1);
 
 			#if defined LPV_VL_FOG_ILLUMINATION
 				VolumetricFog.a *= LPV_ILLUMINATION.a;
@@ -828,7 +828,7 @@ void main() {
 					imageStore(cloudDepthTex, ivec2(gl_FragCoord.xy), vec4(cloudDistance.r, cloudDistance.g, 0, 1));
 				#endif
 		
-				VolumetricFog = GetVolumetricFog(viewPos1, WsunVec, vec2(noise_1), directLightColor, indirectLight_fog, indirectLight, cloudPlaneDistance);
+				VolumetricFog = GetVolumetricFog(viewPos1, WsunVec, vec2(noise_1), directLightColor, indirectLight_fog, indirectLight, cloudPlaneDistance, noise_1, noise_1);
 
 				VolumetricFog = vec4(VolumetricClouds.rgb*VolumetricFog.a + VolumetricFog.rgb, VolumetricFog.a*VolumetricClouds.a);
 			#endif
