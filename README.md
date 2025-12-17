@@ -9,8 +9,9 @@ Notable changes/additions compared to Eclipse unstable:
 
 <img width="1920" height="1080" alt="2025-12-17_15 15 41" src="https://github.com/user-attachments/assets/f761531c-8d56-45c2-a609-51690d140820" />
 
-Also from the top and inside of it
+Look from the top
 <img width="1920" height="1080" alt="2025-12-17_15 15 28" src="https://github.com/user-attachments/assets/63a2db37-a169-4cf6-b7e5-8d9669367fb1" />
+And inside of it
 <img width="1920" height="1080" alt="2025-11-29_23 35 28" src="https://github.com/user-attachments/assets/7c479f38-d2f3-4331-9c21-bd98acc19522" />
 
 
